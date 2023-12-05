@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+"""
+Code by Christopher Riccardi, PhD Student at University of Florence (Italy) https://www.bio.unifi.it/vp-175-our-research.html
+Currently Guest Researcher at Sun Lab, University of Southern California, Los Angeles (USA) https://dornsife.usc.edu/profile/fengzhu-sun/
+PhD Project Title: Computational modelling of omics data from condition-dependent datasets. Graduating Fall 2024.
+Advisor: Marco Fondi (U Florence)
+"""
 import os
 import sys
 import logging
@@ -37,6 +42,23 @@ def read_Excel(vmr_file):
     df.to_csv(vmr_file.replace('.xlsx', '.tsv'), sep='\t', index=False) ## Dump a non-Excel version, for easy bash scripting.
     return df
 
+def GenBank_cleanup(accession):
+    ## Parse a non-uniformly formatted file
+    accsns = []
+    if ': ' in accession: ## ': ' means there are strings to split
+        accsns = [line.split(';')[0].replace(' ', '') for line in accession.split(':') if line.startswith(' ')]
+    else:
+        if '; ' in accession: ## Other cases
+            accsns = accession.split('; ')
+        else:
+            if ';' in accession:
+              accsns = accession.split(';')
+            else:
+              accsns = [accession]
+    accsns = [elem.split()[0] for elem in accsns]
+    accsns = [item for row in accsns for item in row.split(';')]
+    return accsns
+
 def run_Entrez(df, data_dir):
     ## Must have entrez installed. See https://www.ncbi.nlm.nih.gov/books/NBK179288/ for more.
     ## I used this in Linux kernel -> sh -c "$(curl -fsSL https://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/install-edirect.sh)"
@@ -49,29 +71,16 @@ def run_Entrez(df, data_dir):
         ## esearch -db nuccore -query "MF176343" | efetch -format genbank
     import subprocess
     logging.info('Will run esearch and efetch to download viral GenBank files.')
-    genbank=df['Virus GENBANK accession']
+    genbank=df['Virus GENBANK accession'] ## These have been polished, and separated by a semicolon
     if genbank.empty:
         logging.info('There was an error processing your GenBank accessions. The relative VMR spreadheet column seems empty.')
         sys.exit(1)
         
     accsns = []
     files_processed = 0
-
+    
     for i, accession in enumerate(genbank):
-        ## Parse a non-uniformly formatted file
-        if ': ' in accession: ## ': ' means there are strings to split
-            accsns = [line.split(';')[0].replace(' ', '') for line in accession.split(':') if line.startswith(' ')]
-        else:
-            if '; ' in accession: ## Other cases
-                accsns = accession.split('; ')
-            else:
-                if ';' in accession:
-                  accsns = accession.split(';')
-                else:       
-                  accsns = [accession]
-        accsns = [elem.split()[0] for elem in accsns]
-        accsns = [item for row in accsns for item in row.split(';')]
-        
+        accsns = accession.split(';')
         ## Now create a directory for every index, and download the sequences associated
         dir = os.path.join(data_dir, str(df.iloc[i]['Sort']))
         os.mkdir(dir)
@@ -125,7 +134,10 @@ def flag_errors(input):
                 print(gb, file=open(os.path.join(input, 'flagged.txt'), 'w'))
                 logging.info(f'Found potentially empty file at {gb}')
                 outdated.add(os.path.join(os.path.join(input, 'Data'), listdir))
-    logging.info(f'{len(outdated)} files were potentially empty. Please check')
+    if len(outdated) == 0:
+        logging.info('No errors found in GenBank files. All good.')
+    else:
+        logging.info(f'{len(outdated)} files were potentially empty. Please check')
     return outdated
 
 def delete_outdated(outdated):
@@ -138,15 +150,29 @@ def update_dataframe(df, outdated):
     empty = [int(os.path.basename(line)) for line in outdated]
     return df[~df['Sort'].isin(pd.Series(empty))]
 
+def Excel_cleanup(df):
+    ## Cleanup GenBank accession column, since it's heterogeneous. Update 'Virus GENBANK accession' on the TSV file
+    cleanup = []
+    for accession in df['Virus GENBANK accession']:
+        acc_list = GenBank_cleanup(accession)
+        acc_string = ";".join(acc_list)
+        cleanup.append(acc_string)
+    df['Virus GENBANK accession'] = cleanup
+    return df
+
 def connect(url, output):
     mkdir(output)
     vmr_file = os.path.join(output, vmr_filename + ".xlsx") ## Local copy of the VMR table
     VMR_Connect(url, vmr_file) ## Download current VMR file
-    
+    df = read_Excel(vmr_file)
+    df = Excel_cleanup(df)
+    df.to_csv(vmr_file.replace('.xlsx', '.tsv'), sep='\t', index=False) ## Dump a non-Excel version, for easy bash scripting.
+
 def download(input):
     vmr_file = os.path.join(input, vmr_filename + ".xlsx") ## Local copy of the VMR table
     df = read_Excel(vmr_file)
-    
+    df = Excel_cleanup(df)
+    df.to_csv(vmr_file.replace('.xlsx', '.tsv'), sep='\t', index=False) ## Dump a non-Excel version, for easy bash scripting.
     ## Create a Data directory where to store all the files!
     data_dir = os.path.join(input, 'Data')
     mkdir(data_dir)
@@ -155,7 +181,7 @@ def download(input):
 def update(input, delete_dirs):
     vmr_file = os.path.join(input, vmr_filename + ".xlsx") ## Local copy of the VMR table
     df = read_Excel(vmr_file)
-    
+    df = Excel_cleanup(df)
     outdated = flag_errors(input)
     df = update_dataframe(df, outdated)
     df.to_csv(vmr_file.replace('.xlsx', '.tsv'), sep='\t', index=False) ## Dump a non-Excel version, for easy bash scripting.
@@ -189,7 +215,12 @@ if __name__ == '__main__':
     up.set_defaults(delete_dirs=False)
     #
     
-    kwargs = vars(parser.parse_args())    
+    kwargs = vars(parser.parse_args())
+    try:
+        response = sys.argv[1]
+    except:
+        print(f'Usage: {sys.argv[0]} <Subcommands: connect, download, update>')
+        sys.exit(1)
     globals()[kwargs.pop('subparser')](**kwargs)
     
     ## Done
