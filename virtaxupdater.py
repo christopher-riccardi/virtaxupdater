@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Code by Christopher Riccardi, PhD Student at University of Florence (Italy) https://www.bio.unifi.it/vp-175-our-research.html
-Currently Guest Researcher at Sun Lab, University of Southern California, Los Angeles (USA) https://dornsife.usc.edu/profile/fengzhu-sun/
-PhD Project Title: Computational modelling of omics data from condition-dependent datasets. Graduating Fall 2024.
-Advisor: Marco Fondi (U Florence)
+Code by:
+    [+] Christopher Riccardi, PhD Student at University of Florence (Italy) https://www.bio.unifi.it/vp-175-our-research.html
+        Currently Guest Researcher at Sun Lab, University of Southern California, Los Angeles (USA) https://dornsife.usc.edu/profile/fengzhu-sun/
+        PhD Project Title: Computational modelling of omics data from condition-dependent datasets. Graduating Fall 2024.
+        Advisor: Marco Fondi (U Florence)
+    [+] Rachel Yuqiu Wang, PhD Student at University of Southern California, Los Angeles (USA) https://dornsife.usc.edu/profile/fengzhu-sun/
+        Advisor: Fengzhu Sun (USC)
 """
 import os
 import sys
 import logging
 import argparse
-import numpy as np
+import subprocess
 import pandas as pd
 
 logging.basicConfig(format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S', level=logging.INFO)
@@ -69,7 +72,6 @@ def run_Entrez(df, data_dir):
     ## Download GenBank files systematically inside each directory/GenBank
     ## GenBank files (e.g., for entry "MF176343") are downloaded by using the following command:
         ## esearch -db nuccore -query "MF176343" | efetch -format genbank
-    import subprocess
     logging.info('Will run esearch and efetch to download viral GenBank files.')
     genbank=df['Virus GENBANK accession'] ## These have been polished, and separated by a semicolon
     if genbank.empty:
@@ -140,6 +142,23 @@ def flag_errors(input):
         logging.info(f'{len(outdated)} files were potentially empty. Please check')
     return outdated
 
+def retry(input):
+    files_processed = 0
+    cwd = os.getcwd()
+    not_found = [line.rstrip() for line in open(os.path.join(input, 'flagged.txt'))]
+    if not_found:
+        logging.info(f'Retrying download of {len(not_found)} GenBank files')
+    for gb in not_found:
+        ## Change directory temporarily and execute bash script from within again
+        dir = gb.split('GenBank/')[0] ## Since it only works on Linux, use '/' as directory delimiter!
+        os.chdir(dir)
+        cmd = ['bash', 'download_genbank.sh']
+        subprocess.run(cmd)
+        files_processed += len(os.listdir('GenBank'))
+        ## Then come back to main wd
+        os.chdir(cwd)
+    logging.info(f'Processed {files_processed} additional files')
+
 def delete_outdated(outdated):
   import shutil
   for folder in outdated:
@@ -182,7 +201,18 @@ def update(input, delete_dirs):
     vmr_file = os.path.join(input, vmr_filename + ".xlsx") ## Local copy of the VMR table
     df = read_Excel(vmr_file)
     df = Excel_cleanup(df)
+  
+    try:
+        os.remove(os.path.join(input, 'flagged.txt'))
+    except:
+        pass ## Ok, file wasn't there in the first place
+
+    ## Check for outdated. Give it another try!
     outdated = flag_errors(input)
+    if outdated:
+      retry(input)
+      outdated = flag_errors(input)
+
     df = update_dataframe(df, outdated)
     df.to_csv(vmr_file.replace('.xlsx', '.tsv'), sep='\t', index=False) ## Dump a non-Excel version, for easy bash scripting.
     if delete_dirs:
@@ -225,3 +255,4 @@ if __name__ == '__main__':
     
     ## Done
     logging.info(f'Thank you for using {sys.argv[0]}')
+
