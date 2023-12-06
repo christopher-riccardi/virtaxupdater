@@ -131,7 +131,7 @@ def flag_errors(input):
             gb = os.path.join(folder, file)
             size = len(open(gb).readline())
             if size < 80:
-                print(gb, file=open(os.path.join(input, 'flagged.txt'), 'w'))
+                print(gb, file=open(os.path.join(input, 'flagged.txt'), 'a'))
                 logging.info(f'Found potentially empty file at {gb}')
                 outdated.add(os.path.join(os.path.join(input, 'Data'), listdir))
     if len(outdated) == 0:
