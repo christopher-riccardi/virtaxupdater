@@ -4,7 +4,7 @@
 Code by:
     [+] Christopher Riccardi, PhD Student at University of Florence (Italy) https://www.bio.unifi.it/vp-175-our-research.html
         Currently Guest Researcher at Sun Lab, University of Southern California, Los Angeles (USA) https://dornsife.usc.edu/profile/fengzhu-sun/
-        PhD Project Title: Computational modelling of omics data from condition-dependent datasets. Graduating Fall 2024.
+        PhD Project Title: Computational modelling of omics data from condition-dependent datasets.
         Advisor: Marco Fondi (U Florence)
     [+] Rachel Yuqiu Wang, PhD Student at University of Southern California, Los Angeles (USA) https://dornsife.usc.edu/profile/fengzhu-sun/
         Advisor: Fengzhu Sun (USC)
