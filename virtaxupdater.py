@@ -92,7 +92,6 @@ def run_Entrez(df, data_dir):
         accessions_file.close()
 
         ## Might as well create the bash script and execute it from here
-        bash_script = 'while read accession; do esearch -db nuccore -query "$accession" | efetch -format genbank > GenBank/"$accession".gb; done < <(cat accessions.txt)'
         bash_script = 'n=$(cat accessions.txt | wc -l)\nif [ "$n" -eq 1 ]; then\n    for accession in `cat accessions.txt`; do esearch -db nuccore -query "$accession" | efetch -format genbank > GenBank/"$accession".gb; done\nelse\n    for accession in `cat accessions.txt`; do sleep 1; esearch -db nuccore -query "$accession" | efetch -format genbank > GenBank/"$accession".gb; done\nfi'
         print(bash_script, file=open(os.path.join(dir, 'download_genbank.sh'), 'w'))
 
