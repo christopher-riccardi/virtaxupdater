@@ -1,0 +1,518 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Code by:
+    [+] Christopher Riccardi, PhD Student at University of Florence (Italy) https://www.bio.unifi.it/vp-175-our-research.html
+        Currently Guest Researcher at Sun Lab, University of Southern California, Los Angeles (USA) https://dornsife.usc.edu/profile/fengzhu-sun/
+        PhD Project Title: Computational modelling of omics data from condition-dependent datasets.
+        Advisor: Marco Fondi (U Florence)
+    [+] Rachel Yuqiu Wang, PhD Student at University of Southern California, Los Angeles (USA) https://dornsife.usc.edu/profile/fengzhu-sun/
+        Advisor: Fengzhu Sun (USC)
+"""
+from Bio import SeqIO
+import pandas as pd
+import subprocess
+import argparse
+import logging
+import json
+import time
+import sys
+import os
+
+logging.basicConfig(format='%(asctime)s - %(funcName)s:%(lineno)d [%(levelname)s] %(message)s', datefmt='%d-%b-%y %H:%M:%S', level=logging.INFO)
+PROGRAM, VERSION='Virtaxupdater', '1.0.0'
+class Args():
+    def __init__(self):
+        self.args = {'subcommand':None, 
+                     '-i':None,
+                     '-u':None,
+                     '-b':None,
+                     '-m':None}
+        self._subcommands = ['connect', 'index', 'update', 'download', 'extract', 'deflate', 'inflate']
+        args = sys.argv
+        args.remove(args[0]) # Remove script name from args
+        if not len(args): # Must have args
+            self.SubCommandError()
+        try:
+            self._choice = self._subcommands.index(args[0]) # Get subcommand index
+        except ValueError:
+            self.SubCommandError()
+        self.args['subcommand'] = self._choice
+        self.Funclist = [self.ConnectParser, self.IndexParser, self.UpdateParser, self.DownloadParser, self.ExtractParser, self.DeflateParser, self.InflateParser]
+
+    def SubCommandError(self):
+        err = 'Choose a subcommand amongst the following:\n   ' + '\n   '.join(self._subcommands) + '\n'
+        sys.stderr.write(err)
+        sys.exit(1)
+
+    def Parse(self):
+        self.Funclist[self._choice]() # Call function which index is in subcommand choice
+        return self.args
+
+    def ConnectParser(self):
+        descr = ' '.join(['Establish connection with the ICTV Virus Metadata Resource (VMR), and download the current',
+                'VMR spreadsheet. In 2023, this is a two-sheet table with the first sheet being informative',
+                'of virus exemplars (it contains 26 columns). If the ICTV moves the spreadsheet elsewhere',
+                'and the script fails (let us know) you have two options: either specify the url using the',
+                '-u command line option, or manually move the spreadsheet to the "connect" directory,',
+                'renaming it to "vmr_spreadsheet.xlsx".'])
+        parser = argparse.ArgumentParser(description=descr)
+        parser.add_argument(
+        '-u', '--url', dest='url', default="https://ictv.global/vmr/current", help='Use urllib to download a local copy of the current VMR table from the ICTV')
+        parser.add_argument(
+        '-i', '--input', dest='input', required=True, help='Name of working directory you wish to store the data in. You will provide this as input to all the following subcommands.')
+        args = parser.parse_args()
+        self.args['-u'] = args.url
+        self.args['-i'] = args.input
+
+    def IndexParser(self):
+        descr = ' '.join(['The VMR spreadsheet contains one exemplar per row. Exemplars are identified by a "Sort" integer.',
+                'Occasionally, for segmented viruses, the GenBank cell in a row contains multiple GenBank accessions.',
+                '(e.g., segmented viruses -> SegA: JX403941; SegB: JX403942) or (e.g., Polydnaviriformidae -> C1: ',
+                'AJ632304; C2: AJ632305; C3: AJ632306; etc etc). There are also cases with <accession> (start.end)',
+                '( e.g., LK928904 (2253.10260) ) where the viral sequence is confined to a range within a larger contig.',
+                'Parse these one by one to obtain a "long"-formatted table, having one accession per row. The index',
+                'file is used by the subsequent subcommands for accessing data at multiple levels, so it is stored in',
+                'JSON format to allow easy I/O, especially since it is continuously updated by the final subcommands.'])
+        parser = argparse.ArgumentParser(description=descr)
+        parser.add_argument(
+        '-i', '--input', dest='input', required=True, help='Name of working directory created by the "connect" subcommand')
+        args = parser.parse_args()
+        self.args['-i'] = args.input
+
+    def UpdateParser(self):
+        descr = ' '.join(['Compute a diff between an existing database and a possible update from the ICTV so that later,',
+                'the "download" subcommand can download the additional files only, without querying Entrez again.'])
+        parser = argparse.ArgumentParser(description=descr)
+        parser.add_argument(
+        '-i', '--input', dest='input', required=True, help='Name of working directory created by the "connect" subcommand')
+        args = parser.parse_args()
+        self.args['-i'] = args.input
+
+    def DownloadParser(self):
+        descr = ' '.join(['Use Entrez Direct https://www.ncbi.nlm.nih.gov/books/NBK179288/ to download genbank files by accession.',
+                'Entrez allows to download batches of up to 100 accession at a time. This is much faster than single downloads.'])
+        parser = argparse.ArgumentParser(description=descr)
+        parser.add_argument(
+        '-b', '--batch-size', dest='batch_size', type=int, default=75, help='Number of accessions in batches for Entrez Direct download. Must be an integer [1,100], Default: 75')
+        parser.add_argument(
+        '-i', '--input', dest='input', required=True, help='Name of working directory created by the "connect" subcommand')
+        args = parser.parse_args()
+        if not 0 < int(args.batch_size) < 101:
+            logging.error('-b value must be in a range [1,100]')
+        self.args['-b'] = int(args.batch_size)
+        self.args['-i'] = args.input
+
+    def ExtractParser(self):
+        descr = ' '.join(['Go through the freshly downloaded GenBank files, one by one, and extract information.',
+                'Here we use the Biopython module for a straightforward access to each record. Note',
+                'that occasionally the nucleotide sequence is not found. In such cases, the program tries',
+                'downloading it again using Entrez Direct with the "-fasta" flag. Note: "extract" is probably',
+                'the last module you need, since it creates a tab-delimited, compressed table containing 31',
+                'columns, with information ranging from host, contry and date to the complete ICTV taxonomy',
+                'and DNA sequence. See the GitHub page for more!'])
+        parser = argparse.ArgumentParser(description=descr)
+        parser.add_argument(
+        '-i', '--input', dest='input', required=True, help='Name of working directory created by the "connect" subcommand')
+        args = parser.parse_args()
+        self.args['-i'] = args.input
+
+    def DeflateParser(self):
+        descr = ' '.join(['Split the large table into smaller, binary files. These can be reassembled',
+                'later using the "inflate" subcommand on the same directory. This is useful if',
+                'deploying the database on a webapp or, like us, uploading it on GitHub.'])
+        parser = argparse.ArgumentParser(description=descr)
+        parser.add_argument(
+        '-m', '--max-megabytes', dest='mb', type=int, default=20, help='Split large, compressed data frame in N files of -m size max, in megabytes. Default: 20 (20MB)')
+        parser.add_argument(
+        '-i', '--input', dest='input', required=True, help='Name of working directory created by the "connect" subcommand')
+        args = parser.parse_args()
+        if int(args.mb) < 1:
+            logging.error('-m must be an integer greater than 0')
+        self.args['-m'] = int(args.mb)
+        self.args['-i'] = args.input
+
+    def InflateParser(self):
+        descr = ' '.join(['Put together the binary files that were split using "deflate".',
+                'This will create a directory named "inflate" with the reconstructed',
+                'tab-delimited, compressed data table.'])
+        parser = argparse.ArgumentParser(description=descr)
+        parser.add_argument(
+        '-i', '--input', dest='input', required=True, help='Name of working directory created by the "connect" subcommand')
+        args = parser.parse_args()
+        self.args['-i'] = args.input
+
+class VTU():
+    def __init__(self, working_directory) -> None:
+        ## Directories
+        self._working_directory = working_directory
+        self._connect_dir = os.path.join(self._working_directory, 'connect')
+        self._index_dir = os.path.join(self._working_directory, 'index')
+        self._update_dir = os.path.join(self._working_directory, 'update')
+        self._download_dir = os.path.join(self._working_directory, 'download')
+        self._deflate_dir = os.path.join(self._working_directory, 'deflate')
+        self._inflate_dir = os.path.join(self._working_directory, 'inflate')
+
+        ## Files
+        self._vmr_spreadsheet = os.path.join(self._connect_dir, 'vmr_spreadsheet.xlsx')
+        self._index_file = os.path.join(self._index_dir, 'index.json')
+        self._update_file = os.path.join(self._update_dir, 'update.json')
+        self._timestamp_file = os.path.join(self._update_dir, 'timestamp.txt')
+        self._exemplars_file = os.path.join(self._working_directory, 'exemplars.tsv.gz')
+        self._flagged_file = os.path.join(self._working_directory, 'flagged.txt')
+        self._deflate_index_file = os.path.join(self._deflate_dir, 'parts.index')
+
+        ## Other
+        self.Funclist = [self.connect_subcommand, self.index_subcommand, self.update_subcommand, self.download_subcommand, self.extract_subcommand, self.deflate_subcommand, self.inflate_subcommand]
+
+        ## Initialize working directory
+        if CreateDirectory(self._working_directory) == 1:
+            sys.exit(1)
+
+    def connect_subcommand(self):
+        if CreateDirectory(self._connect_dir) == 1:
+            sys.exit(1)
+        if DownloadInternetFile(params['-u'], self._vmr_spreadsheet) == 1:
+            logging.error('Cannot download VMR file. Are you connected to the internet? Is the URL still valid?')
+            sys.exit(1)
+
+    def index_subcommand(self):
+        if CreateDirectory(self._index_dir) == 1:
+            sys.exit(1)
+        if not os.path.isdir(self._connect_dir) or not os.path.isfile(self._vmr_spreadsheet):
+            logging.error('You should run "connect" subcommand first')
+            sys.exit(1)
+        index = Excel2Index(self._vmr_spreadsheet)
+        with open(self._index_file, 'w') as w:
+            json.dump(index, w)
+        try:
+            index = json.load(open(self._index_file))
+        except:
+            logging.error('Something is wrong with your index file')
+            sys.exit(1)
+
+    def update_subcommand(self):
+        from datetime import datetime
+        if CreateDirectory(self._update_dir) == 1:
+            sys.exit(1)
+        if not os.path.isdir(self._connect_dir) or not os.path.isfile(self._vmr_spreadsheet) or not os.path.isfile(self._index_file):
+            logging.error('You should run "connect" and "index" subcommands first')
+            sys.exit(1)
+        logging.info('Checking for updates, please wait')
+        index, new_index = None, Excel2Index(self._vmr_spreadsheet)
+        try:
+            index = json.load(open(self._index_file))
+        except:
+            logging.error('Something is wrong with your existing index file; cannot load JSON')
+            sys.exit(1)
+        old=set([elem['accession'] for elem in index])
+        new=set([elem['accession'] for elem in new_index])
+        difference = new.difference(old) # Now compute diff between index file on your machine and the new index file derived from the spreadsheet
+        if not difference:
+            logging.info('Nothing to update')
+            return
+        logging.info(f'{len(difference)} entries need update')
+        diff_dict = [elem for elem in new_index if elem['accession'] in difference] # Difference between the two lists of dictionaries
+        with open(self._update_file, 'w') as w:
+            json.dump(diff_dict, w) # The update file is also a list of dictionaries, for consistency
+        now = datetime.now() # Keep track of when the update happened
+        with open(self._timestamp_file, 'w') as w:
+            dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+            w.write(dt_string)
+        with open(self._index_file, 'w') as w:
+            json.dump(new_index, w) # Also update the old index with the newly-obtained info
+        logging.info(f'Updated {len(difference)} entries. Now run "download" subcommand to retrieve data')
+
+    def download_subcommand(self):
+        if not os.path.isdir(self._connect_dir) or not os.path.isfile(self._vmr_spreadsheet) or not os.path.isfile(self._index_file):
+            logging.error('You should run "connect" and "index" subcommands first')
+            sys.exit(1)
+        if CreateDirectory(self._download_dir) == 1:
+            sys.exit(1)
+        update, index = [], json.load(open(self._index_file))
+        try:
+            to_update = json.load(open(self._update_file))
+        except:
+            pass # Means there is nothing to update
+        if update: # If there are updates, download updates only
+            logging.info('Found updates to download, proceeding')
+            [EntrezRunner(batch, self._download_dir) for batch in Batchata(update)]
+        else: # Instead, if there are no updates, go with the normal download using the index file as guide
+            logging.info('Proceeding with standard full download')
+            [EntrezRunner(batch, self._download_dir) for batch in Batchata(index)]
+
+    def extract_subcommand(self):
+        from Bio.SeqUtils import gc_fraction
+        if not os.path.isfile(self._vmr_spreadsheet) or not os.path.isfile(self._index_file) or not os.path.isdir(self._download_dir):
+            logging.error('You should run previous subcommands first')
+            sys.exit(1)
+        logging.info('Extracting data from GenBank files, please wait')
+        flags, files, index, df = [], \
+            [file.replace('.gb', '') for file in os.listdir(self._download_dir)], json.load(open(self._index_file)), \
+                pd.read_excel(self._vmr_spreadsheet) # Load accessions and index
+        flags = [data['accession'] for data in index if data['accession'] not in files] # Files in the self._download_dir are non-empty
+        accessions, sorts, virus_names, hosts, hosts_VMR, partitions, \
+        molecule_types, genome_compositions, topologies, genome_coverages, \
+        exemplars_additionals, dates, countries, lengths, gc_fractions, \
+        sequences, realms, subrealms, kingdoms, subkingdoms, phyla, \
+        subphyla, classes, subclasses, orders, suborders, families, \
+        subfamilies, genera, subgenera, species = [], [], [], [], [], \
+        [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], \
+        [], [], [], [], [], [], [], [], [], []
+        for data in index: # Data is the single dictionary in the index file, which is a list
+            if data['accession'] in flags:
+                continue # Skip this specific dict if it's been flagged
+            gb = os.path.join(self._download_dir, data['accession']+'.gb') # Load GenBank file in self._download_dir. GenBank file has plenty of information which we try fetching
+
+            ## Handle sequence first
+            d_sequence = '>%s %s\n' % (data['accession'], data['sort'])
+            seq = GenBank2Seq(gb) # Get it or download it!
+            if seq==None:
+                flags.append(data['accession'])
+                continue # Flag and skip if we cannot retrieve sequence
+            d_gc_fraction=gc_fraction(seq) # Calc GC content of this object
+            d_length=len(seq)
+            if data['start']: # Provirus-like get handled here
+                seq=seq[int(data['start']):int(data['end'])]
+            d_sequence += seq # Format header + sequence
+
+            ## Handle more info
+            info = GenBank2Info(gb)
+            d_accession, d_sort, d_partition, d_molecule_type, d_topology, d_date, d_host, d_country = data['accession'], data['sort'], data['partition'], info['molecule_type'], info['topology'], info['date'], info['host'], info['country']
+            
+            ## Handle taxonomy
+            row = df[df['Sort']==d_sort] # Get single row with same 'Sort' i.e., VMR identifier
+            d_virus_name, d_exemplar_additional, d_host_VMR, d_genome_coverage,\
+            d_genome_composition, d_Realm, d_Subrealm, d_Kingdom, d_Subkingdom, \
+            d_Phylum, d_Subphylum, d_Class, d_Subclass, d_Order, d_Suborder, \
+            d_Family, d_Subfamily, d_Genus, d_Subgenus, d_Species = row['Virus name(s)'].values[0], \
+            row['Exemplar or additional isolate'].values[0], row['Host source'].values[0], row['Genome coverage'].values[0], row['Genome composition'].values[0] ,\
+            row['Realm'].values[0], row['Subrealm'].values[0], row['Kingdom'].values[0], row['Subkingdom'].values[0], \
+            row['Phylum'].values[0], row['Subphylum'].values[0], row['Class'].values[0], row['Subclass'].values[0], \
+            row['Order'].values[0], row['Suborder'].values[0], row['Family'].values[0], row['Subfamily'].values[0],\
+            row['Genus'].values[0], row['Subgenus'].values[0], row['Species'].values[0] 
+            accessions.append(d_accession)
+            sorts.append(d_sort)
+            virus_names.append(d_virus_name)
+            hosts.append(d_host)
+            hosts_VMR.append(d_host_VMR)
+            partitions.append(d_partition)
+            molecule_types.append(d_molecule_type)
+            genome_compositions.append(d_genome_composition)
+            topologies.append(d_topology)
+            genome_coverages.append(d_genome_coverage)
+            exemplars_additionals.append(d_exemplar_additional)
+            dates.append(d_date)
+            countries.append(d_country)
+            lengths.append(d_length)
+            gc_fractions.append(d_gc_fraction)
+            sequences.append(d_sequence)
+            realms.append(d_Realm)
+            subrealms.append(d_Subrealm)
+            kingdoms.append(d_Kingdom)
+            subkingdoms.append(d_Subkingdom)
+            phyla.append(d_Phylum)
+            subphyla.append(d_Subphylum)
+            classes.append(d_Class)
+            subclasses.append(d_Subclass)
+            orders.append(d_Order)
+            suborders.append(d_Suborder)
+            families.append(d_Family)
+            subfamilies.append(d_Subfamily)
+            genera.append(d_Genus)
+            subgenera.append(d_Subgenus)
+            species.append(d_Species)
+            ## End of loop
+        logging.info(f'Flagged {len(flags)} entries, updating index')
+        [index.remove(data) for data in index if data['accession'] in flags] # Remove dictionaries from index list when the accession is flagged
+        print(*flags, sep='\n', file=open(self._flagged_file, 'w')) # Also write flagged accession to file
+        with open(self._index_file, 'w') as w:
+            json.dump(index, w) # Update index with clean information
+        logging.info('Writing tab-delimited, gzip-compressed table. Please wait')
+        ## Merge with taxonomy from ICTV
+        exemplars = pd.DataFrame({'accession':accessions, 'sort':sorts, 'virus_name':virus_names, 'host':hosts, 'host_VMR':hosts_VMR, \
+                                    'partition':partitions, 'molecule_type':molecule_types, 'genome_composition':genome_compositions, \
+                                    'topology':topologies, 'genome_coverage':genome_coverages, 'exemplar_additional':exemplars_additionals, \
+                                    'date':dates, 'country':countries, 'length':lengths, 'gc_fraction':gc_fractions, 'sequence':sequences, \
+                                    'Realm':realms, 'Subrealm':subrealms, 'Kingdom':kingdoms, 'Subkingdom':subkingdoms, 'Phylum':phyla, \
+                                    'Subphylum':subphyla, 'Class':classes, 'Subclass':subclasses, 'Order':orders, 'Suborder':suborders, \
+                                    'Family':families, 'Subfamily':subfamilies, 'Genus':genera, 'Subgenus':subgenera, 'Species':species})
+        exemplars.to_csv(self._exemplars_file, compression='gzip', sep='\t', index=False)
+
+    def deflate_subcommand(self):
+        if CreateDirectory(self._deflate_dir) == 1:
+            sys.exit(1)
+        logging.info(f'Deflating table using chunks of {int(params["-m"] * 1e06)} bytes')
+        i, parts = 1, []
+        with open(self._exemplars_file, 'rb') as bf: 
+            bufread = bf.read(int(params['-m'] * 1e06)) # Read -m megabytes from compressed binary file
+            while len(bufread) > 0:
+                fname = os.path.join(self._deflate_dir, str(i)+'.part')
+                with open(fname, 'wb') as f:
+                    f.write(bufread) # Write -m megabytes from compressed binary file
+                    parts.append(fname)
+                    i+=1
+                    bufread = bf.read(int(params['-m'] * 1e06))
+                    logging.warning('Writing more than 100 files, loop at your own risk.') if i > 100 else i
+        print(*parts, sep='\n', file=open(self._deflate_index_file, 'w')) # Write a deflate index file that tells concatenation order
+
+    def inflate_subcommand(self):
+        if not os.path.isdir(self._deflate_dir):
+            logging.error('You should run deflate subcommand first')
+            sys.exit(1)
+        if CreateDirectory(self._inflate_dir) == 1:
+            sys.exit(1)
+        parts = [line.rstrip() for line in open(self._deflate_index_file)] # Get concatenation order
+        logging.info(f'Inflating table from {len(parts)} .part files')
+        with open(os.path.join(self._inflate_dir, 'exemplars.tsv.gz'), 'wb') as f:
+            for part in parts:
+                with open(part, 'rb') as bf:
+                    f.write(bf.read()) # Rebuild original file by concatenating split binaries
+        logging.info(f'Your table is ready at {os.path.join(self._inflate_dir, "exemplars.tsv.gz")}')
+
+def Excel2Index(vmr_spreadsheet):
+    df = pd.read_excel(vmr_spreadsheet) # Requires openpyxl installed
+    df = df[~df['Virus GENBANK accession'].isnull()] # Some records don't link GenBank accessions
+    index = []
+    for i, row in df.iterrows():  
+        sort, accessions = row['Sort'], row['Virus GENBANK accession']
+        d_accession, d_sort, d_partition, d_start, d_end = None, sort, None, None, None
+        accessions = accessions.replace(' ', '')
+        accessions = accessions.split(';')
+        for accession in accessions:
+            d_accession, d_partition, d_start, d_end = ParseString(accession) # ParseString gets info from 'Virus GENBANK accession' column
+            d_str = {'accession':d_accession, 'sort':d_sort, 'partition':d_partition, 'start':d_start, 'end':d_end}
+            index.append(d_str)
+    return index
+
+def ParseString(s):
+    ## Parse a single 'Virus GENBANK accession' record splitted string
+    s_accession, s_partition, s_start, s_end = None, None, None, None
+    if ':' in s:
+        s_partition = s.split(':')[0] 
+        s = s.split(':')[1:][0]
+    if '(' in s:
+        s_start, s_end = s.split('(')[1].split('.')[0], s.split('(')[1].split('.')[1].split(')')[0]
+        s = s.split('(')[0]
+    s_accession = s
+    return s_accession, s_partition, s_start, s_end
+
+def EntrezRunner(batch, download_dir):
+    ## Run Entrez Direct commands 'esearch' piped with 'efetch'
+    accessions = [elem['accession'] for elem in batch]
+    logging.info(f'Running Entrez Direct on a batch of {len(accessions)} accessions')
+    script = "esearch -db nuccore -query " + ','.join(accessions) + " | efetch -format genbank"
+    result = subprocess.check_output(script, shell = True, executable = "/bin/bash", stderr = subprocess.STDOUT).decode()
+    time.sleep(0.5) # Give it a break!
+    consistent = len(accessions) == result.count('ACCESSION  ') # There should be as many genbank files as there were queried accessions
+    if consistent:
+        logging.info('Accessions and GenBank files count are consistent')
+        split = GenBankSplitter(result, accessions)
+        GenBankWriter(split, download_dir)
+    else:
+        logging.warning('One or more accessions in batch does not link a valid GenBank. Attempting download of this batch one by one')
+        for accession in accessions:
+            script = "esearch -db nuccore -query " + accession + " | efetch -format genbank"
+            result = None
+            result = subprocess.check_output(script, shell = True, executable = "/bin/bash", stderr = subprocess.STDOUT).decode()
+            if len(result) < 80: # Arbitrary lower bound of calling a GenBank file non-empty
+                logging.info(f'Accession {accession} does not link any GenBank file. This might have triggered the warning')
+                time.sleep(1)
+                continue # Do not write this empty file
+            with open(os.path.join(download_dir, accession+'.gb'), 'w') as w:
+                w.write(result)
+
+def GenBankWriter(dictionary, genbank_dir):
+    for key, item in dictionary.items():
+        if len(item) > 0: # Write GenBank file if not empty
+            with open(os.path.join(genbank_dir, key+'.gb'), 'w') as w:
+                print(*item, sep='\n', file=w)
+        else:
+            logging.warning(f'Entry with accession {key} has an empty GenBank file.')
+
+def GenBankSplitter(string, accessions):
+    i = -1
+    lines = string.split('\n') # Split the large text returned by subprocess
+    if not len(lines):
+        logging.warning('Subprocess did not capture output')
+    d = {}
+    locus = None
+    for line in lines:
+        if line.startswith('LOCUS '):
+            i += 1
+            locus = accessions[i] 
+            d[locus] = []
+        if locus:
+            d[locus].append(line)
+    return d
+
+def CreateDirectory(directory_path):
+    try:
+        os.mkdir(directory_path)
+    except FileExistsError:
+        pass # Ignore if already present
+    except: # Anything else produces error, return status 1
+        logging.error(f'Cannot create directory {directory_path}')
+        return 1
+    logging.info(f'Successfully created/updated directory at {directory_path}')
+    return 0
+
+def DownloadInternetFile(url, output):
+    from urllib.request import urlretrieve
+    logging.info(f'Downloading internet file {url}')
+    try:
+        path, headers = urlretrieve(url, output)
+    except:
+        return 1
+    if not os.path.isfile(output):
+        return 1
+    return 0
+
+def Batchata(data):
+    size = len(data)
+    for i in range(0, size, params['-b']):
+        yield data[i:i + params['-b']]
+
+def GenBank2Info(file):
+    info = {'molecule_type':None, 'topology':None, 'date':None, 'host':None, 'country':None}
+    for gb in SeqIO.parse(file, 'gb'):
+        molecule_type = gb.annotations.get('molecule_type', None)
+        if molecule_type:
+            info['molecule_type'] = molecule_type
+        topology = gb.annotations.get('topology', None)
+        if topology:
+            info['topology'] = topology
+        date = gb.annotations.get('date', None)
+        if date:
+            info['date'] = date
+        host = gb.features[0].qualifiers.get('host', None)
+        if host==None:
+            host = gb.features[0].qualifiers.get('lab_host', None)
+        if host:
+            info['host'] = host[0]
+        country = gb.features[0].qualifiers.get('country', None)
+        if country:
+            info['country'] = country[0]
+        return info
+
+def GenBank2Seq(file):
+    for gb in SeqIO.parse(file, 'gb'):
+        if gb.seq.defined:
+            return gb.seq
+        else:
+            logging.warning('Could not read sequence from GenBank file directly. Downloading it separately.')
+            filename = os.path.basename(file).replace('.gb', '') # Files are named <accession> + <.gb>
+            script = "esearch -db nuccore -query " + filename + " | efetch -format fasta"
+            result = subprocess.check_output(script, shell = True, executable = "/bin/bash", stderr = subprocess.STDOUT).decode()
+            if not result.startswith('>'):
+                logging.warning(f'Could not download sequence for accession {filename}')
+                return None
+            seq = ''.join([line for line in result.split('\n') if not line.startswith('>')])
+            return SeqIO.SeqRecord(seq).seq
+
+if __name__ == '__main__':
+    sys.stderr.write('\n(v) This is %s version %s\n\n' %(PROGRAM, VERSION))
+    args = Args()
+    params = args.Parse()
+    vtu = VTU(params['-i'])
+    vtu.Funclist[params['subcommand']]()
