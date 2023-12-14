@@ -1,27 +1,73 @@
-# virtaxupdater
+# Virtaxupdater  
+#### With Virtaxupdater you can:  
+* Download ICTV VMR exemplar viruses [GenBank Flat Files](https://www.ncbi.nlm.nih.gov/Sitemap/samplerecord.html)
+* Extract meaningful information from records (DNA sequence, date, host and more)
+* Update an existing data set
+* Deflate/Inflate data for hosting ICTV VMR on your own GitHub  
+
+All in one simple framework! Keep scrolling for more info.  
+<br>  
+## Introduction   
 ### Download viral genomes by connecting to the latest ICTV Virus Metadata Resource (VMR)  
 
 Hello, and welcome.  
 As stated in https://ictv.global/vmr, the ICTV *chooses an exemplar virus for each species and the VMR provides a list of these exemplars (...) and includes the GenBank accession number for the genomic sequence of the isolate as well as the virus name, isolate designation, suggested abbreviation, genome composition, and host source*.  
 <br>
-The code in this repository automatically fetches the VMR information and downloads the GenBank files associated to each exemplar virus.  
+Virtaxupdater automatically collects sequences and metadata associated to each exemplar virus in the latest VMR. It is a simple and powerful python framework with very little requirements that makes over 16,000 records available in less than 2 hours.   
 <br>  
 
-### Requirements  
-```virtaxupdater``` was developed on Linux kernel and it is written in python. In addition to [pandas](https://pypi.org/project/pandas/), it simply requires one additional library for Excel spreadsheet manipulation and the Entrez Direct E-utilities software package for programmatic access to the NCBI's suite of interconnected databases:  
+## Index  
+[How to run](#how-to-run)  
+[Installation](#installation)  
+[Requirements](#requirements)  
+[How it works](#how-it-works)  
+[Querying the data](#querying-the-data)  
+[Troubleshooting](#troubleshooting)  
+[Future developments](#future-developments)  
+ <br>
+ ## How to run  
+ Virtaxupdater is composed of seven subcommands. Having the script broken down into seven modules makes it possible to perform separate tasks without running the entire pipeline every time. The thought process is pretty straightforward: there is a subcommand for each task to bring you from zero to VMR-hero in less than 2 hours.  
+ 
+ ### I don't have time to go through the documentation  
+ Fine, you have two options.  
+ * Option 1: you don't even need Virtaxupdater. Simply download the Database folder in this repository, open a terminal in the directory containing it (<ins>don't</ins> *cd* into Database/) and ```Ctrl```+```C``` ```Ctrl```+```V``` this one-liner:
+ ```bash
+ :> exemplars.tsv.gz; while read part; do cat "$part" >> exemplars.tsv.gz; done < <(cat Database/deflate/parts.index)
+ ```
+That's it! Your data are in this large, 31-column, tab-delimited, gzip-compressed table, **exemplars.tsv.gz**. Head over to [Querying the data](#querying-the-data) for a quick and easy run-through.  
 
-* [openpyxl](https://pypi.org/project/openpyxl/)
-* [Entrez Direct](https://www.ncbi.nlm.nih.gov/books/NBK179288/)
-<br>
+ * Option 2: use Virtaxupdater to download your own, up-to-date version of the VMR. Assuming you have conda or better yet, **mamba** you will first run ```conda create -n vtu -c conda-forge biopython openpyxl pandas -y``` to create a new environment called vtu. It only costs a few minutes of your time and helps avoid library conflicts. Then run ```sh -c "$(curl -fsSL https://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/install-edirect.sh)"``` to install [Entrez Direct](https://www.ncbi.nlm.nih.gov/books/NBK179288/) (it takes 30 seconds, agree to everything the installer wants). After cloning the repository, make it executable with the command ```chmod +x virtaxupdater; conda activate vtu``` and finally run the four essential subcommands:  
+ ```bash
+./virtaxupdater connect -i myfolder
+./virtaxupdater index -i myfolder
+./virtaxupdater download -i myfolder
+./virtaxupdater extract -i myfolder
+ ```
+That's it, you should find a large tab-delimited, gzipp'd table at myfolder/exemplars.tsv.gz in less than 2 hours.  
 
-### How it works  
-Three modules allow you to connect to VMR, download all exemplar virus GenBank files and update a local repository. Specifically, use:
+### Give me the documentation
+ 
+ [back](#index)  
+ <br>  
+ ## Installation  
+ [back](#index)  
+ <br>  
+ ## Requirements  
+ [back](#index)  
+ <br>  
+ ## How it works  
+ [back](#index)  
+ <br>  
+ ## Querying the data  
+ [back](#index)  
+ <br>  
+ ## Troubleshooting  
+ [back](#index)  
+ <br>  
+ ## Future developments  
+ [back](#index)  
+ <br>  
 
-```virtaxupdater connect```  To get the current VMR spreadsheet from the [ICTV](https://ictv.global/vmr) and save it to a new working directory.   
-```virtaxupdater download```  To process the exemplar virus list and download all GenBank files associated to each 'Sort' (this takes approx 12hrs).  
-```virtaxupdater update```  To update and polish the GenBank subdirectories + a TSV spreadsheet obtained using the previous two subcommands.  
-<br>  
 
-### Future developments  
-Currently looking into extracting the most relevant features from the exemplar viruses, such as virus host, genome composition and possibility to compare taxa within this dataset.  
 
+ 
