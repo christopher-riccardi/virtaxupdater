@@ -133,6 +133,7 @@ Put together the binary files that were split using "deflate". This will create 
 conda create -n vtu -c conda-forge biopython openpyxl pandas -y
 sh -c "$(curl -fsSL https://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/install-edirect.sh)"
  ```
+  *Disclaimer: conda is great, but for those type of projects we strongly recommend that you use [mamba](https://github.com/conda-forge/miniforge/#Download) instead.*  
  <br>  
  [Back to Index](#index)  
  <br>  
