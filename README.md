@@ -13,7 +13,7 @@ All in one simple framework! Keep scrolling for more info.
 Hello, and welcome.  
 As stated in https://ictv.global/vmr, the ICTV *chooses an exemplar virus for each species and the VMR provides a list of these exemplars (...) and includes the GenBank accession number for the genomic sequence of the isolate as well as the virus name, isolate designation, suggested abbreviation, genome composition, and host source*.  
 <br>
-Virtaxupdater automatically collects sequences and metadata associated to each exemplar virus in the latest VMR. It is a simple and powerful python framework with very little requirements that makes over 16,000 records available in less than 2 hours. Throughout this documentation we refer to the viral sequences, taxonomy, and additional information of the exemplars as **the Data**. We made the Data available on this repository in the form of 6 parts due to size limit (see [Accessing the Data](#accessing-the-data)). Note that we tested this framework on a Linux kernel only.   
+Virtaxupdater automatically collects sequences and metadata associated to each exemplar virus in the latest VMR. It is a simple and powerful python framework with very little requirements that makes over 16,000 records available in less than 2 hours. Throughout this documentation we refer to the viral sequences, taxonomy, and additional information of the exemplars as **the Data**. The Data is available for download through this repository, but it is partitioned due to size limit (total ~130MB). See [Accessing the Data](#accessing-the-data) to learn how to assemble it. Note that we tested this framework on a Linux kernel only.   
 The currently hosted Data derives from:  
 * **VMR_MSL38_v2** Created 09/13/2023 - 17:32 https://ictv.global/vmr.   
 <br>  
