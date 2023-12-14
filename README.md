@@ -52,7 +52,8 @@ Assuming you have conda or better yet, **mamba**, you will first run ```conda cr
 That's it, you should find a large tab-delimited, gzipp'd table at myfolder/exemplars.tsv.gz in less than 2 hours.  Head over to [Querying the data](#querying-the-data) for a quick and easy run-through.  
 
 ### Subcommands  
-Every subcommand requires the ```-i INPUT``` command line argument, which is the name of the working directory where you will store the Data. As you can see from the previous example, the first command we run is ```./virtaxupdater connect -i myfolder``` and it is recommended that ```myfolder``` does not exist.  
+Every subcommand requires the ```-i INPUT``` command line argument, which is the name of the working directory where you will store the Data. As you can see from the previous example, the first command we run is ```./virtaxupdater connect -i myfolder``` and it is recommended that ```myfolder``` does not exist. The subcommands are:  
+<br>
 ```connect```  
 ```
 usage: connect [-h] [-u URL] -i INPUT  
@@ -118,29 +119,38 @@ Put together the binary files that were split using "deflate". This will create 
  <br>  
  
  ## Installation  
+ Virtaxupdater is a python script that does not require a formal installation. Its dependencies, however, do. Check out the [Requirements](#requirements) section for more information.  
  <br>
  [Back to Index](#index)  
  <br>  
  
  ## Requirements  
- <br>
+ (1) Virtaxupdater uses [pandas](https://pypi.org/project/pandas/) + [openpyxl](https://pypi.org/project/openpyxl/) for I/O on large data frames and/or Excel spreadsheets. While the former is likely already installed on your computer, the latter isn't unless you specifically installed it.  
+ (2) [Entrez Direct](https://www.ncbi.nlm.nih.gov/books/NBK179288/) is a command line toolset for programmatic access to the NCBI's suite of interconnected databases (publication, sequence, structure, gene, variation, expression, etc.). Its installation is really easy (see point 4).  
+ (3) The GenBank flat files downloaded using Entrez Direct can be parsed using [Biopython](https://anaconda.org/conda-forge/biopython), without having to reinvent the wheel.  
+ (4) If you wish to create a conda/mamba environment from which to use Virtaxupdater, this is how you can install the dependencies:  
+ ```bash
+conda create -n vtu -c conda-forge biopython openpyxl pandas -y
+sh -c "$(curl -fsSL https://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/install-edirect.sh)"
+ ```
+ <br>  
  [Back to Index](#index)  
  <br>  
  
- ## Querying the data  
- <br>
+ ## Querying the Data  
+ This section provides (work in progress)
+ <br>  
  [Back to Index](#index)  
  <br>  
  
  ## Troubleshooting  
- <br>
+ <br>  
  [Back to Index](#index)  
  <br>  
  
  ## Future developments  
- <br>
- [Back to Index](#index)  
  <br>  
+ [Back to Index](#index)  
  <br>  
 
 
