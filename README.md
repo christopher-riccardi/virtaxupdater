@@ -3,7 +3,7 @@
 * Download ICTV VMR exemplar viruses [GenBank Flat Files](https://www.ncbi.nlm.nih.gov/Sitemap/samplerecord.html)
 * Extract meaningful information from records (DNA sequence, date, host and more)
 * Update an existing data set
-* Deflate/Inflate data for hosting ICTV VMR on your own GitHub  
+* Deploy or host ICTV VMR data on your own GitHub  
 
 All in one simple framework! Keep scrolling for more info.  
 <br>  
