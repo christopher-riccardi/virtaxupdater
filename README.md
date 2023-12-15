@@ -58,14 +58,14 @@ Assuming you have conda or better yet, **mamba**, you will first run ```conda cr
 That's it, you should find a large tab-delimited, gzipp'd table at myfolder/exemplars.tsv.gz in less than 2 hours. Head over to [Querying the data](#querying-the-data) for a quick and easy run-through.  
 
 ### Subcommands  
-Every subcommand requires the ```-i INPUT``` command line argument, which is the name of the working directory where you will store the **Exemplars**. As you can see from the previous example, the first command we run is ```./virtaxupdater connect -i myfolder``` and it is recommended that ```myfolder``` does not exist. The subcommands are:  
+Every subcommand requires the ```-i INPUT``` command line argument, which is the name of the working directory where you will store the **Exemplars**. As you can see from the previous example, the first command we run is ```./virtaxupdater connect -i myfolder``` and it is recommended that ```myfolder``` does not exist. Most, but not all, subcommands create a directory with their name. This is an internal detail for better data organization. The subcommands are:  
 <br>
 ```connect```  
 ```
 usage: connect [-h] [-u URL] -i INPUT  
 ```
 Establish connection with the ICTV Virus Metadata Resource (VMR), and download the current VMR spreadsheet. In 2023, this is a two-sheet table with the first sheet being
-informative of virus exemplars (it contains 26 columns). If the ICTV moves the spreadsheet elsewhere and the script fails (let us know) you have two options: either
+informative of virus exemplars (it contains 26 columns, find it on this repo at Database/connect/vmr_spreadsheet.xlsx). If the ICTV moves the spreadsheet elsewhere and the script fails (let us know) you have two options: either
 specify the url using the -u command line option, or manually move the spreadsheet to the "connect" directory, renaming it to "vmr_spreadsheet.xlsx".  
 <br>
 
