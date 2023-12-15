@@ -154,7 +154,7 @@ sh -c "$(curl -fsSL https://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/install-edi
 >>> import matplotlib.pyplot as plt # Same
 
 ## Load the Exemplars
->>> df = pd.read_csv('Database\inflate\exemplars.tsv.gz', sep='\t', compression='gzip') # tab-delimited, gzipp'd file
+>>> df = pd.read_csv('Database\inflate\exemplars.tsv.gz', sep='\t', compression='gzip') # Tab-delimited, gzipp'd file
 
 ## Query the data frame
 >>> df.shape # Rows and columns in my data set
@@ -181,7 +181,7 @@ min   1.660000e+02     0.177812
 75%   3.570750e+04     0.504307
 max   4.857450e+06     0.785244
 
->>> df['genome_coverage'].value_counts() # counts of genome coverage descriptions across the data
+>>> df['genome_coverage'].value_counts() # Counts of genome coverage descriptions across the data
 Complete genome           13061
 Coding-complete genome     1464
 Complete coding genome      939
@@ -193,12 +193,13 @@ Name: genome_coverage, dtype: int64
            Realm genome_coverage         date
 12451  Riboviria  Partial genome  09-JAN-2014
 
->>> sns.kdeplot(df['gc_fraction'])
+>>> sns.kdeplot(df['gc_fraction']) # Frequency of G+C content across all exemplars
 <Axes: xlabel='gc_fraction', ylabel='Density'>
 >>> plt.show()
+```
+![kdeplot](https://github.com/christopher-riccardi/virtaxupdater/assets/119225793/999257a6-b3b2-4584-8d69-d2147d31e048)
 
-![kdeplot](https://github.com/christopher-riccardi/virtaxupdater/assets/119225793/22fb0ca4-eac5-4000-aec1-818afc52b2ca)
-
+```python
 ## Finally, write a FASTA file ('exemplars_multifasta.fa') containing all the sequences 
 >>> print(*df['sequence'].to_list(), sep='\n', file=open('exemplars_multifasta.fa', 'w'))
 >>> quit()
