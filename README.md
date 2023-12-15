@@ -37,15 +37,14 @@ The currently hosted **Exemplars** derive from:
  ```bash
  :> exemplars.tsv.gz; while read part; do cat "$part" >> exemplars.tsv.gz; done < <(cat Database/deflate/parts.index)
  ```
-That's it! Your date are in the form of this large, 31-column, tab-delimited, gzip-compressed table, **exemplars.tsv.gz**. Head over to [Querying the data](#querying-the-data) for a quick and easy run-through.  
-Note, however, that you can also use Virtaxupdater to re-assemble the table, retrieve GenBank flat files, update existing versions of the **Exemplars** and much more.  
-You can access the **Exemplars** on Windows too! Check out the [Compatibility](#compatibility) section to learn how to access the partitioned table using Virtaxupdater on any OS.   
+That's it! Your data are in the form of this large, 31-column, tab-delimited, gzip-compressed table, **exemplars.tsv.gz**. Head over to [Querying the data](#querying-the-data) for a quick and easy run-through.  
+Note, however, that you can also use Virtaxupdater to re-assemble the table, retrieve GenBank flat files, update existing versions of the **Exemplars** and much more. You can access the **Exemplars** on Windows too! Check out the [Compatibility](#compatibility) section to learn how to access the partitioned table using Virtaxupdater on any OS.   
  <br>
  [Back to Index](#index)  
  <br>  
  
  ## How to run  
- Virtaxupdater is composed of seven subcommands. Having the script broken down into seven modules makes it possible to perform separate tasks without running the entire pipeline every time. The thought process is pretty straightforward: there is a subcommand for each task to bring you from zero to hero in less than 2 hours.    
+ Virtaxupdater is composed of seven subcommands. Having the program to operate in modules makes it possible to perform separate tasks without running the entire pipeline every time. The thought process is pretty straightforward: there is a subcommand for each task to bring you from zero to hero in less than 2 hours.    
 ### Quick start: install and run Virtaxupdater
 Use Virtaxupdater to download data from the VMR from scratch; this allows you to have full control over all files, including all GenBank flat files, from which you may wish to extract additional information your own way. This section lets you create a conda/mamba environment, download the Entrez Direct toolset needed to programmatically access the NCBI, make Virtaxupdater executable, and run four essential commands. Here goes something.  
 Assuming you have conda or better yet, **mamba**, you will first run ```conda create -n vtu -c conda-forge biopython openpyxl pandas -y``` to create a new environment called vtu. It only costs a few minutes of your time and helps avoid library conflicts. Then run ```sh -c "$(curl -fsSL https://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/install-edirect.sh)"``` to install [Entrez Direct](https://www.ncbi.nlm.nih.gov/books/NBK179288/) (it takes 30 seconds, agree to everything the installer wants). After cloning the repository, make it executable with the command ```chmod +x virtaxupdater; conda activate vtu``` and finally run the four essential subcommands:  
@@ -144,7 +143,7 @@ sh -c "$(curl -fsSL https://ftp.ncbi.nlm.nih.gov/entrez/entrezdirect/install-edi
  [Back to Index](#index)  
  <br>  
  
- ## Querying the Data  
+ ## Querying the data  
  This section provides a brief demonstration on reading and understanding the **Exemplars**. It assumes you know how to use basic pandas functions for tabular data analysis. For further display of compatibility, we run these commands on Windows: \*nix users surely will know how to re-adapt the code to fit their need. Here we simply open a terminal in the working directory that contains the Database folder downloaded from this repository.   
 ```python
 ## Imports
